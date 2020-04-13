@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "string": "cpp"
+    },
+    "html.format.wrapLineLength": 80,
+    "editor.wordWrap": "bounded",
+    "[markdown]": {
+        "editor.wordWrap": "bounded",
+    }
+}
