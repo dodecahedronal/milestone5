@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "object.h"
+#include "dataframe.h"
 
 enum COL_TYPE {BOOLEAN, INT, FLOAT, STRING};
 int sorer_debug = 0;
@@ -134,17 +135,14 @@ public:
         // count the number of <, stop at col-th
         while ((ncol <= col) && (row[i] != '\0'))
         {
-            if (row[i] == '<')
-                ncol++;
+            if (row[i] == '<') ncol++;
             i++;
         }
 
-        if (row[i] == '\"')
-            i++; // get ride of " mark
+        if (row[i] == '\"') i++; // get ride of " mark
         // second, to find the right bracket >
         // at the same time, record each char from < to >
-
-        char *ret = new char[sizeof(row)]; // to keep the string value from < to >
+        char *ret = new char[1024]; // to keep the string value from < to >
         int j = 0;                         // index for ret[]
         while ((row[i] != '>') && (row[i] != '\0'))
         {
@@ -152,12 +150,10 @@ public:
             i++;
             j++;
         }
-        if (ret[j - 1] == '\"')
-            ret[j - 1] = '\0';
-        else
-            ret[j] = '\0';
-        if (sorer_debug)
-            printf("ret = %s\n", ret);
+        if (ret[j - 1] == '\"') ret[j - 1] = '\0';
+        else  ret[j] = '\0';
+
+        if (sorer_debug) printf("       ret = %s, j=%d\n", ret, j);
         return ret;
     }
 
@@ -196,19 +192,14 @@ public:
     void buildSchema() {
         for (int i = 0; i < numberOfColumns_; i++)
         {
-            // construct column names : col-i
-            char name[128];
-            sprintf(name, "col-%d", i);
-            String *stringName = new String(name);
-
             if (colType_[i] == BOOLEAN)
-                this->sch_.add_column('B', stringName);
+                this->sch_.add_column('B');
             else if (colType_[i] == INT)
-                this->sch_.add_column('I', stringName);
+                this->sch_.add_column('I');
             else if (colType_[i] == FLOAT)
-                this->sch_.add_column('F', stringName);
+                this->sch_.add_column('F');
             else if (colType_[i] == STRING)
-                this->sch_.add_column('S', stringName);
+                this->sch_.add_column('S');
         }
     }
 
@@ -224,7 +215,6 @@ public:
         DataFrame* df = new DataFrame(this->sch_);
         Row row(df->get_schema());
         char arow[2048];
-
         // load input file to dataframe df row by row
         fseek(fp_, 0, SEEK_SET);         // move file pointer to the beginning
         for (int i = 0; i < this->numberOfRows_; i++) // for each row
@@ -248,6 +238,7 @@ public:
                 else if (colType_[col_id] == STRING)
                     row.set(col_id, new String(s));
             }
+ 
             // finally add row to dataframe
             row.set_idx(i);
             df->add_row(row);

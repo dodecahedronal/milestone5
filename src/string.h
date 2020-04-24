@@ -38,14 +38,14 @@ public:
     String(Deserializer& d) {
         //printf("String::String(d)\n");
         this->size_ = d.deserialize_size_t();
-        printf("***** string size=%d\n", size_);
+        //printf("***** string size=%d\n", size_);
         this->cstr_ = d.deserialize_chars(this->size_);
     }
 
     // String serializer
     void serialize(Serializer& s) {
         s.serialize_size_t(this->size_);
-        printf("String:: cstr_=%s\n", this->cstr_);
+        //printf("    String:: cstr_=%s\n", this->cstr_);
         s.serialize_chars(this->cstr_, this->size_);
     }
 
@@ -106,15 +106,13 @@ public:
             (cstr_[size_-1]=='!') || 
             (cstr_[size_-1]=='?') ||
             (cstr_[size_-1]==';') ) {
-            //printf("-------size=%d sctr[size-1]=%c------------\n", size_, cstr_[size_ - 1]);
             size_--;
             cstr_[size_] = '\0';
-            //printf("-------size=%d sctr[size-1]=%c------------\n", size_, cstr_[size_ - 1]);
         }
     }
     // print cstr_
     void printString() {
-        printf("String::printString(): cstr_ = %s, size=%d\n", cstr_, size_);
+        printf("String::printString(): cstr_ = %s, size=%d\n", cstr_, (int)size_);
     }
  };
 

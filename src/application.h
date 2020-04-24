@@ -13,6 +13,7 @@
 class DataFrame;
 
 #define NUM_NODES 3
+int app_debug = 1;
 
 //////////////////////////////////////
 // Each KV store has part of the distributed data. All of the networking
@@ -34,14 +35,6 @@ public:
   // hash value v to key k
   void put(Key* k, DataFrame* v) {
     Key* key = new Key(k->key_, nodeId_);
-
-    //if (nodeId_ != k->nodeId_) 
-    //{
-    //  printf("Given node ID %d does not match the current node %d\n", key->nodeId_, nodeId_);
-    //  return;
-    //}
-    //this->lock_.lock();
-    //map_.set(key, v);
     if (map_.get(k))
     {
       DataFrame *old = map_.remove(k);
@@ -49,28 +42,16 @@ public:
         delete old;
     }
     map_.set(key, v);
-    //printf("after put------------\n");
-    //map_.printMap();
-    //this->lock_.notify_all();
-    //this->lock_.unlock();
-
-    //delete key;
   } 
 
   // retrieve value by giving key k
   DataFrame* get(Key* k) {
       return map_.get(k);
   }
-  /*  DataFrame* get(Key* k) {
-    if (k->nodeId_ == this->nodeId_) 
-      return map_.get(k);
-    else
-      return waitAndGet(k);
-  }
-*/
+
   // retrieve value by giving key k
-  // TODO: networking
-  DataFrame* waitAndGet(Key* k) 
+  // NOTE: not used
+  /*DataFrame* waitAndGet(Key* k) 
   {
 
     lock_.lock(); // lock
@@ -79,7 +60,8 @@ public:
     lock_.unlock();
     return map_.get(k);
   }
-
+  */
+ 
   void printMap() {
     this->map_.printMap();
   }
@@ -98,7 +80,8 @@ DataFrame *DataFrame::fromArray(Key *key, KVStore *store, size_t size, double *d
   for (int i = 0; i < size; i++)
     col->push_back(data[i]);
 
-  frame->add_column(col, new String("col"));
+  //frame->add_column(col, new String("col"));
+  frame->add_column(col);
   store->put(key, frame);
 
   // store->printMap();
@@ -114,7 +97,7 @@ DataFrame* DataFrame::fromScalar(Key* key, KVStore* store, double data)
   Column *col = new DoubleColumn();
   col->push_back(data);
 
-  frame->add_column(col, new String("col"));
+  frame->add_column(col);
 
   store->put(key, frame);
 
@@ -135,6 +118,33 @@ public:
   
   // return the node id
   int this_node() { return this->idx_; }
+  
+  // wait for dataframe with Key key to recieve, and save to kvstore
+  DataFrame* waitAndGet(Key* key)
+  {
+    if (app_debug) printf("    Application::waitAndGet() with key=%s...\n", key->key_);
+    //key->printKey();
+
+    DataFrame *df = this->stores_.get(key);
+    if (df) return df;
+
+    bool done = false;
+    while (!done)
+    {
+      Message *msg = this->net_->recv_msg();
+      if (!msg)
+        continue; // if the message is not arrives, wait
+      if (msg->kind_ == MsgKind::Put)
+      { // read message and save it to kvstore
+        Put *putMsg = dynamic_cast<Put *>(msg);
+        this->stores_.put(putMsg->key_, putMsg->data_);
+      }
+      df = (this->stores_.get(key));
+      if (df)
+        done = true;
+    }
+    return df;
+  }
 
   // virtual run method. users will override the method like in Demo class
   virtual void run_() {}

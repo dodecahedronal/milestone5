@@ -46,14 +46,14 @@ public:
     void serialize_chars(char* data, size_t len)
     {
         memcpy(this->sdata_+this->length_, data, len*sizeof(char));
-        printf("serialize() length=%d", length_);
+        //printf("serialize() length=%d, ", length_);
         this->length_ += len;   // advance the buffer index
     }
 
     void print_size_t(int startFrom)
     {
         printf("print_size_t()----\n");
-        for (int i=startFrom; i<startFrom+this->length_; i++) printf("%zd ", this->sdata_[i]);
+        for (int i=startFrom; i<startFrom+this->length_; i+=8) printf("%zd ", this->sdata_[i]);
         printf("\n");
     }
     void print_char(int startFrom) {
@@ -120,7 +120,7 @@ public:
         memcpy(ret, this->ddata_ + this->dlen_, strLen*sizeof(char));
         ret[strLen] = '\0';
         this->dlen_ += strLen*sizeof(char);
-        printf("deserialize_char():: ret=%s dlen=%d, strlen=%d\n", ret, this->dlen_, strLen);
+        //printf("deserialize_char():: ret=%s dlen=%d, strlen=%d\n", ret, this->dlen_, strLen);
         return ret;
     }
 

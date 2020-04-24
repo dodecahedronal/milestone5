@@ -424,7 +424,7 @@ public:
 			if (this->map[i])
 			{
 				this->map[i]->key_.printString();
-				printf("	value=%d\n", map[i]->value_);
+				printf("	value=%d\n", (int)map[i]->value_);
 			}
     	}  
 	}
@@ -591,7 +591,7 @@ public:
 		  {
 			  String *key = (String *)(items_[i].keys_.get(j));
 			  Num *val = (Num *)(items_[i].vals_.get(j));
-			  printf("word=%s, count=%d\n", key->c_str(), val->v);
+			  printf("word=%s, count=%d\n", key->c_str(), (int)val->v);
 		  }
 	  }
   }

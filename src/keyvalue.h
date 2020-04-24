@@ -30,6 +30,19 @@ public:
     this->nodeId_ = k->nodeId_;
   }
 
+  Key(Deserializer &d) {
+    size_t len = d.deserialize_size_t();
+    key_ = d.deserialize_chars(len);
+    nodeId_ = d.deserialize_size_t();
+  }
+
+  void serialize(Serializer &s) {
+    size_t len = strlen(key_);
+    s.serialize_size_t(len);
+    s.serialize_chars(key_, strlen(key_));
+    s.serialize_size_t(nodeId_);
+  }
+
   // destructor
   ~Key() { if (this->key_) delete [] this->key_; }
   void setKey(char* kstring) { this->key_ = kstring; }
@@ -38,7 +51,7 @@ public:
   size_t getNode() { return this->nodeId_; }
   size_t home() { return this->nodeId_; }
   void printKey() {
-    printf("printKey(): key=%s, nodeId = %d\n", this->key_, this->nodeId_);
+    printf("printKey(): key=%s, nodeId = %d\n", this->key_, (int)this->nodeId_);
   }
 
   size_t hash() {

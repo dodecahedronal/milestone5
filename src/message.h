@@ -29,7 +29,7 @@ public:
     // constructor with Deserializer d
     Message(Deserializer& d) {
         //printf("Message::Message(d)\n");
-        this->kind_ = (MsgKind) d.deserialize_size_t();
+        //this->kind_ = (MsgKind) d.deserialize_size_t();
         this->sender_ = d.deserialize_size_t();
         this->target_ = d.deserialize_size_t();
         this->id_ = d.deserialize_size_t();
@@ -61,7 +61,7 @@ public:
     static Message* deserialize(Deserializer& d);
 
     virtual void printMessage() {
-        printf("kind=%d, sender=%d, target=%d, id=%d\n", kind_, sender_, target_, id_);
+        printf("    Message::printMsg(): kind=%d, sender=%d, target=%d, id=%d\n", (int)kind_, (int)sender_, (int)target_, (int)id_);
     }
 };
 
@@ -103,13 +103,6 @@ public:
     }
 };
 
-// now implement Message::deserialize()
-Message* Message::deserialize(Deserializer& d) {
-    switch ((MsgKind) d.deserialize_size_t()) {
-        case MsgKind::Ack: return (new Ack(d));
-        case MsgKind::Status: return (new Status(d));
-    }
-};
 ////////////////////////////////////////
 // register message
 class Register : public Message {
@@ -119,6 +112,7 @@ public:
 
     // constructor: initialize client_ and port_ with given deserializer
     Register(Deserializer& d) : Message(d) {
+        this->kind_ = MsgKind::Register;
         char *dst = (char *)&client_;
         d.deserialize_chars(dst, sizeof(sockaddr_in));
         this->port_ = d.deserialize_size_t();
@@ -130,7 +124,7 @@ public:
         client_.sin_port = addr.sin_port;
         client_.sin_addr = addr.sin_addr;
 
-        port_ = port_;
+        port_ = port;
     }
 
     Register(size_t idx, size_t port) 
@@ -138,8 +132,10 @@ public:
         this->target_ = 0;      // register is alway to the server(node 0)
         this->sender_ = idx;    // sender is itself;
         this->kind_ = MsgKind::Register;
+        this->port_ = port;
         client_.sin_family = AF_INET;
         client_.sin_port = htons(port);
+        client_.sin_addr.s_addr = INADDR_ANY;
     }
 
     // serialize 
@@ -175,38 +171,50 @@ class Directory : public Message {
 public:
    size_t clients_;   // number of clients ?
    size_t * ports_;  // port numbers
-   String ** addresses_;  // ip addresses
+   size_t * addr_;  // ip addresses
+
+    Directory(size_t* p, size_t* addr) {
+        this->sender_ = 0;    
+        this->kind_ = MsgKind::Directory;
+        clients_ = args.numNodes_;
+        ports_ = p;
+        addr_ = addr;
+    }
 
    // constructor
    Directory(Deserializer& d) : Message(d) {
+       this->kind_ = MsgKind::Directory;
        // get client_
        this->clients_ = d.deserialize_size_t();
 
         // get ports_[]
        this->ports_ = new size_t[this->clients_];
-       for (int i=0; i<this->clients_; i++) 
+       this->addr_ = new size_t[this->clients_];
+       for (int i=0; i<this->clients_; i++) {
            this->ports_[i] = d.deserialize_size_t();
-
-       // get address_
-       this->addresses_ = new String *[this->clients_];
-       for (int i = 0; i < this->clients_; i++)
-       {
-           this->addresses_[i] = new String(d);
+           this->addr_[i] = d.deserialize_size_t();
        }
    }
 
+   // serialize a directory message
    void serialize(Serializer &s)
    {
        Message::serialize(s);
        s.serialize_size_t(this->clients_);
 
-       for (int i=0; i<this->clients_; i++) 
+       for (int i=0; i<this->clients_; i++) {
             s.serialize_size_t(this->ports_[i]);
+            s.serialize_size_t(this->addr_[i]);
+       }
+   }
 
-        for (int i =0; i<this->clients_; i++) {
-            this->addresses_[i]->serialize(s);
-        }
-
+    // print directory content
+   void printDir()
+   {
+       printf("     printDir(): -------\n");
+       printf("     kind=%d, sender=%d, target=%d, id=%d, nclient=%d\n", (int)kind_, (int)sender_, (int)target_, (int)id_, (int)clients_);
+       for (int i=1; i<args.numNodes_; i++) 
+           printf("     ports[%d]=%d, addr[%d]=%d\n", i, (int)ports_[i], i, (int)addr_[i]);
    }
 };
 
@@ -227,13 +235,36 @@ public:
     }
 
     Put(Deserializer& d) : Message(d) {
-       // this->data_->get_double_col(0)->deserialize(d);
-
+        this->kind_ = MsgKind::Put;
+        //printMessage();
+        data_ = new DataFrame(d);
+        key_ = new Key(d);
     }
 
     void serialize(Serializer& s) {
         Message::serialize(s);
-        //this->data_->serialize(s);
-
+        //data_->print_dataframe();
+        data_->serialize(s);
+        key_->serialize(s);
     }
 };
+
+// now implement Message::deserialize()
+Message* Message::deserialize(Deserializer& d) {
+    MsgKind kind = (MsgKind) d.deserialize_size_t();
+    //printf("    Message::deserialize(): kind=%d\n", (int)kind);
+    switch (kind) {
+        case MsgKind::Ack: return (new Ack(d));
+        case MsgKind::Status: return (new Status(d));
+        case MsgKind::Register: return (new Register(d));
+        case MsgKind::Directory: return (new Directory(d));
+        case MsgKind::Put: return (new Put(d));
+        case MsgKind::Nack:
+        case MsgKind::Get:
+        case MsgKind::Kill:
+        case MsgKind::Reply:
+        case MsgKind::WaitAndGet: return (new Message());
+    }
+    return (new Message());
+};
+

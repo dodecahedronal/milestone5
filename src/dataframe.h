@@ -16,6 +16,10 @@ class Key;
 class FileReader;
 class Adder;
 class Summer;
+class SetUpdater;
+class ProjectsTagger;
+class UsersTagger;
+class SetWriter;
 
 /**************************************************************************
  * Column ::
@@ -31,9 +35,9 @@ public:
 
     Column();
     Column(char type) : columnType_(type) {}
-    Column(size_t size, char type)
-    {
-        this->columnType_ = type;
+    Column(size_t sz, char type) : columnType_(type) {}
+    Column(Deserializer& d) {
+        this->columnType_ =  d.deserialize_chars(1)[0];
     }
     ~Column(){}
 
@@ -52,10 +56,10 @@ public:
     virtual void push_back(String *val) {}
 
     // Returns the number of elements in the column.
-    virtual size_t size() { }
+    virtual size_t size() { return 0; }
 
     // return true if two columns are equal
-    virtual bool equals() {}
+    virtual bool equals() { return 0; }
 
     //Return the type of this column as a char: 'S', 'B', 'I' and 'F'.
     char get_type() { return this->columnType_; }
@@ -109,11 +113,17 @@ public:
     } 
 
     // constructor with deserializer
-    IntColumn(Deserializer& d) : Column('I'), vals_(d) { }
+    IntColumn(Deserializer& d) : Column(d), vals_(d) {}
 
-    // serializer
+    void deserialize(Deserializer& d) {
+        this->columnType_ = d.deserialize_chars(1)[0];     // get columnType_
+        this->vals_.deserilize(d);  // get vals_ array data    
+    }
+
+    // serialize: 1. members in class Column. 2. members in class IntColumn
     void serialize(Serializer& s) {
-        this->vals_.serialize(s);
+        s.serialize_chars(&this->columnType_, 1); // serialize columnType_ in class column
+        this->vals_.serialize(s);                   // serialize memebers in class IntColumn
     }
 
     // get this->vals_[idx]. 
@@ -130,11 +140,7 @@ public:
     void set(size_t idx, int val) { this->vals_.insert(idx, val); }
 
     // push val to this->vals_[size_]
-    void push_back(int val) 
-    { 
-        this->vals_.append(val); 
-        //this->columnSize_++;
-    }
+    void push_back(int val) { this->vals_.append(val); }
 
     // return number of elements in current column
     size_t size() { return this->vals_.count(); }
@@ -172,7 +178,6 @@ public:
     DoubleColumn(size_t sz, double* arr) : Column((size_t)sz, 'F') 
     {
         for(int i =0; i<sz; i++) {
-            //printf("arr[%d] = %f\n", i, arr[i]);
             this->vals_.data_[i] = arr[i];
         }
         this->vals_.size_ = sz;
@@ -192,14 +197,21 @@ public:
         va_end(values);             // variable argument processing ends
     }
 
-    // destructor to delete this->vals_
-    ~DoubleColumn() { this->vals_.~DoubleArray(); } 
+    // destructor 
+    ~DoubleColumn() { } 
 
     // constructor with deserializer
-    DoubleColumn(Deserializer& d) : Column('F'), vals_(d) { }
+    DoubleColumn(Deserializer& d) : Column(d), vals_(d) {}
+
+    // deserializer
+    void deserialize(Deserializer& d) {
+        this->columnType_ = d.deserialize_chars(1)[0];     // get columnType_
+        this->vals_.deserialize(d);  // get vals_ array data    
+    }
 
     // serializer
     void serialize(Serializer& s) {
+        s.serialize_chars(&this->columnType_, 1); // serialize columnType_ in class column
         this->vals_.serialize(s);
     }
 
@@ -213,11 +225,7 @@ public:
     void set(size_t idx, double val) { this->vals_.insert(idx, val); }
 
     // push val to this->vals_[size_]
-    void push_back(double val)
-    { 
-        this->vals_.append(val); 
-        //this->columnSize_++;
-    }
+    void push_back(double val) { this->vals_.append(val); }
 
     // return number of elements in current column
     size_t size() { return this->vals_.count(); }
@@ -274,10 +282,17 @@ public:
     ~BoolColumn() { this->vals_.~BoolArray(); } 
 
     // constructor with deserializer
-    BoolColumn(Deserializer& d) : Column('B'), vals_(d) { }
+    BoolColumn(Deserializer& d) : Column(d), vals_(d) { }
+
+    // deserializer
+    void deserialize(Deserializer& d) {
+        this->columnType_ = d.deserialize_chars(1)[0];     // get columnType_
+        this->vals_.deserialize(d);                          // get vals_ array data    
+    }
 
     // serializer
     void serialize(Serializer& s) {
+        s.serialize_chars(&this->columnType_, 1); // serialize columnType_ in class column
         this->vals_.serialize(s);
     }
 
@@ -291,11 +306,7 @@ public:
     void set(size_t idx, bool val) { this->vals_.insert(idx, val); }
 
     // push val to this->vals_[size_]
-    void push_back(bool val) 
-    { 
-        this->vals_.append(val); 
-        //this->columnSize_++;
-    }
+    void push_back(bool val) { this->vals_.append(val); }
 
     // return number of elements in current column
     size_t size() { return this->vals_.count(); }
@@ -355,6 +366,7 @@ public:
         // append current argement to vals_ array.
         for (int i = 0; i < n; i++) 
         { 
+            //printf("-------%d\n", i);
             char* astring = va_arg(values, char*);      // the arguments is char* type
             String* astringObj = new String(astring);   // new String type for appending to this->vals_
             this->vals_.append(astringObj);
@@ -363,13 +375,20 @@ public:
     }
 
     // destructor
-    ~StringColumn() { this->vals_.~StringArray(); }
+    ~StringColumn() {}
 
     // constructor with deserializer
-    StringColumn(Deserializer& d) : Column('S'), vals_(d) { }
+    StringColumn(Deserializer& d) : Column(d), vals_(d) {}
+
+    // deserializer
+    void deserialize(Deserializer& d) {
+        this->columnType_ = d.deserialize_chars(1)[0];     // get columnType_
+        this->vals_.deserialize(d);                         // get vals_ array data    
+    }
 
     // serializer
     void serialize(Serializer& s) {
+        s.serialize_chars(&this->columnType_, 1); // serialize columnType_ in class column
         this->vals_.serialize(s);
     }
 
@@ -383,11 +402,7 @@ public:
     void set(size_t idx, String *val) { this->vals_.insert(idx, val); }
 
     // append one more element val to the column
-    void push_back(String *val)
-    {
-        this->vals_.append(val);
-        //this->columnSize_++;
-    }
+    void push_back(String *val) { this->vals_.append(val); }
 
     void push_back(char *val)
     {
@@ -429,8 +444,6 @@ public:
     size_t  ncolumns_;      // number of columns
     size_t  nrows_;         // number of rows
     char*   colType_;       // column type
-    StringArray* colName_;  // column name
-    StringArray* rowName_;
 
     /** Copying constructor */
     Schema(Schema &from)
@@ -441,12 +454,6 @@ public:
             strcpy(this->colType_, from.colType_);
             this->ncolumns_ = from.ncolumns_;
             this->nrows_ = from.nrows_;
-      
-            // initialize colName_[] and rowName_[]
-            this->colName_ = new StringArray();
-            this->rowName_ = new StringArray();
-            this->colName_->extend(from.colName_);
-            this->rowName_->extend(from.rowName_);
         }
     }
 
@@ -456,8 +463,6 @@ public:
         this->colType_ = nullptr;
         this->ncolumns_ = 0;
         this->nrows_ = 0;
-        this->colName_ = new StringArray();
-        this->rowName_ = new StringArray();
     }
 
     /** Create a schema from a string of types. A string that contains
@@ -468,9 +473,6 @@ public:
     {
         // if types is empty, do nothing
         if (types == nullptr) return;
-    //printf("--%s\n", types);
-        this->colName_ = new StringArray();
-        this->rowName_ = new StringArray();
 
         // if one of the column type is not IFBS, then do nothing
         for (int i=0; i<strlen(types); i++)
@@ -480,8 +482,6 @@ public:
                 (types[i]!='B') &&
                 (types[i]!='S') ) 
             return;
-            String* cname = new String("\0");
-            this->colName_->append(cname);
         }
 
         //otherwise, create schema(column types, #of columns, #of rows, column names, row names)
@@ -490,13 +490,29 @@ public:
         strcpy(this->colType_, types);
         this->ncolumns_ = len;
         this->nrows_ = 0;
-
         //printf("--type=%s nc=%d nr=%d\n", this->colType_, this->ncolumns_, this->nrows_);
+    }
+
+    // constructor with deserializer
+    Schema(Deserializer& d)
+    {
+        this->ncolumns_ = d.deserialize_size_t();
+        this->nrows_ = d.deserialize_size_t();
+        this->colType_ = d.deserialize_chars(ncolumns_);
+        //printf("    Schema(d): ncol=%d, nrow=%d, colType=%s\n", ncolumns_, nrows_, colType_);
+    }
+
+    // serializer
+    void serialize(Serializer& s) {
+        s.serialize_size_t(ncolumns_);
+        s.serialize_size_t(nrows_);
+        s.serialize_chars(colType_, ncolumns_);
     }
 
     /** Add a column of the given type and name (can be nullptr), name
     * is external. */
-    void add_column(char typ, String *name)
+    //void add_column(char typ, String *name)
+    void add_column(char typ)
     {
         // copy current column type to tmp
         char* tmp = new char[this->ncolumns_+2]; // index starts from 0=> size+1, hold '\0'=>+1
@@ -513,82 +529,28 @@ public:
         delete [] this->colType_;               // delete current colType_
         this->colType_ = tmp;                   // use the new allocated colType
         this->ncolumns_++;                      // increase number of columns by one
-         if (name) this->colName_->append(name); // set column name
-
        //printf("Schema::add_columns():ading=%c, type string=%s\n", typ, this->colType_);
     }
 
-    /** Add a row with a name (possibly nullptr), name is external. */
-    void add_row(String *name)
-    {
-        if (name) this->rowName_->append(name);
-        this->nrows_++;
-    }
+    // Add a row  
+    void add_row() { this->nrows_++; }
 
-    /** Return name of row at idx; nullptr indicates no name. An idx >= width
-     *  is undefined. */
-    String *row_name(size_t idx) { return this->rowName_->get(idx); }
+    //Return type of column at idx. An idx >= width is undefined. 
+    char col_type(size_t idx) { return this->colType_[idx]; }
 
-    /** Return name of column at idx; nullptr indicates no name given.
-     *  An idx >= width is undefined.*/
-    String *col_name(size_t idx) { return this->colName_->get(idx);}
-
-    /** Return type of column at idx. An idx >= width is undefined. */
-    char col_type(size_t idx) 
-    { 
-        //printf("===type(%d)=%c\n", idx, this->colType_[idx]);
-        return this->colType_[idx];
-    }
-
-    /** Given a column name return its index, or -1. */
-    int col_idx(const char *name)
-    {
-        String* ithColName;
-        // go through this->colName_ array to fina a match
-        for (int i=0; i<this->ncolumns_; i++)
-        {
-            ithColName = this->col_name(i);
-            if ( !strcmp(ithColName->cstr_, name) ) return i;
-        }
-        // if nothing has been found, then return -1
-        return -1; 
-    }
-
-    /** Given a row name return its index, or -1. */
-    int row_idx(const char *name)
-    {
-        String* ithRowName;
-        for (int i=0; i<this->nrows_; i++)
-        {
-            ithRowName = this->row_name(i);
-            if ( !strcmp(ithRowName->cstr_, name) ) return i;
-        }
-        return -1;
-    }
-
-    /** The number of columns */
+    //return number of columns
     size_t width() { return this->ncolumns_;}
 
-    /** The number of rows */
+    // return number of rows 
     size_t length() { return this->nrows_; }
 
     void print_schema()
     {
         printf("Schema::print_schema() starts----\n");
         printf("    nrow=%d ncol=%d\n", (int)this->length(), (int)this->width() );
-    
-        // print row names if there is any
-        for (int i=0; i<this->length(); i++)
-        {
-            if (this->row_name(i))
-                printf("    row-name[%d]=%s ", i, this->row_name(i)->c_str());
-        }
         pln();
         for (int i=0; i<this->width(); i++)
-        {
-            if (this->col_name(i))
-                printf("    col[%d]=%s type[%d]=%c ", i, this->col_name(i)->c_str(), i, this->col_type(i));
-        }
+                printf("    type[%d]=%c ",  i, this->col_type(i));
         pln();
         printf("Schema::print_schema() ends----\n");
     }
@@ -696,6 +658,7 @@ public:
         this->schema_.print_schema();
         for (int i=0; i<nr; i++)
         {
+
             for (int j=0; j<nc; j++)
             {
                 ctype = this->schema_.col_type(i);
@@ -714,6 +677,30 @@ public:
             pln();
         }
         printf("Row::print_row() ends---\n");
+    }
+
+    // print ith row
+    void printRow(int i)
+    {
+        char ctype;
+        int nr = this->schema_.length(); //number of rows
+        int nc = this->schema_.width();  // number of columns
+        for (int j = 0; j < nc; j++)
+        {
+            ctype = this->schema_.col_type(i);
+            if (this->data_[i])
+            {
+                if (ctype == 'I')
+                    printf("    (%d,%d)=%d  ", j, i, this->get_int(i));
+                if (ctype == 'B')
+                    printf("    (%d,%d)=%d  ", j, i, this->get_bool(i));
+                if (ctype == 'F')
+                    printf("    (%d,%d)=%f  ", j, i, this->get_double(i));
+                if (ctype == 'S')
+                    printf("    (%d,%d)=%s  ", j, i, this->get_string(i)->c_str());
+            }
+        }
+        pln();
     }
 };
 
@@ -775,7 +762,7 @@ class DataFrame : public Object
 public:
     Schema schema_;
     Column** columns_;
-    const int NUM_THREAD=3;
+    //const int NUM_THREAD=3;
     
     /** Create a dataframe with the same columns as the given df but no rows */
     DataFrame(DataFrame* df) 
@@ -790,7 +777,6 @@ public:
     {
         // initialize dataframe schema(ncolumns_, colType_, colName_, rowName, nrows_)
         int ncol = schema.width();
-
         if (ncol <= 0)
         {
             this->schema_.ncolumns_ = ncol;              // set ncolumns_
@@ -805,8 +791,6 @@ public:
             while (i < ncol) // for each column,
             {
                 this->schema_.colType_[i] = schema.col_type(i);     // set colType_
-                this->schema_.colName_->append(schema.col_name(i)); // set colName_
-                this->schema_.rowName_->append(schema.row_name(i)); // set rowNmae_
                 i++;
             }
 
@@ -838,6 +822,54 @@ public:
         }
     }
 
+    DataFrame(Deserializer& d) : schema_(d) 
+    {
+        // get columns ready
+        columns_ = new Column *[schema_.ncolumns_];
+        for (int i = 0; i < schema_.ncolumns_; i++)
+        {
+            char t = schema_.col_type(i);
+            switch (t)
+            {
+            case 'I':
+                this->columns_[i] = new IntColumn(d);
+                break;
+            case 'F':
+                this->columns_[i] = new DoubleColumn(d);
+                break;
+            case 'B':
+                this->columns_[i] = new BoolColumn(d);
+                break;
+            case 'S':
+                this->columns_[i] = new StringColumn(d);
+                break;
+            }
+        }
+    }
+    // serialize the dataframe
+    void serialize(Serializer& s) {
+        this->schema_.serialize(s);
+        for (int i = 0; i < schema_.ncolumns_; i++)
+        {
+            char t = schema_.col_type(i);
+            switch (t)
+            {
+            case 'I':
+                this->columns_[i]->as_int()->serialize(s);
+                break;
+            case 'F':
+                this->columns_[i]->as_double()->serialize(s);
+                break;
+            case 'B':
+                this->columns_[i]->as_bool()->serialize(s);
+                break;
+            case 'S':
+                this->columns_[i]->as_string()->serialize(s);
+                break;
+            }
+        }
+        
+    }
     /** Returns the dataframe's schema. Modifying the schema after a dataframe
      * has been created is undefined behavior. */
     Schema &get_schema() { return this->schema_; }
@@ -845,7 +877,8 @@ public:
     /** Adds a column to this dataframe and updates the schema. the new column
      * is external, and appears as the last column of the dataframe. The
      * name is optional and external. A nullptr column is undefined. */
-    void add_column(Column *col, String *name)
+    //void add_column(Column *col, String *name)
+    void add_column(Column *col)
     {
         char newType = col->get_type();      // get the to-be-added column's type
         size_t ncol = this->schema_.width(); // will add new col to (ncol+1)-th column
@@ -872,14 +905,12 @@ public:
 
             // update schema
             this->schema_.ncolumns_++;              // increase column count
-            this->schema_.colName_->append(name);   // set the new column name
-            //this->schema_.colType_[ncol] = newType; // set column type for the new column
             char* newColType = new char[ncol+2];
             strcpy(newColType, this->schema_.colType_);
-            newColType[ncol] = newType;
+            newColType[ncol] = newType;             // add newType
             newColType[ncol+1] = '\0';
             delete [] this->schema_.colType_;
-            this->schema_.colType_ = newColType;
+            this->schema_.colType_ = newColType;     // set schema column type string
         }
         else 
         {   // update column
@@ -893,7 +924,6 @@ public:
             this->schema_.colType_ = new char[1 + 1];
             this->schema_.colType_[0] = newType;    // set column type for the new column
             this->schema_.colType_[1] = '\0';       // remember to terminate colType
-            this->schema_.colName_->append(name);   // set the new column name  
         }
  
         //this->get_schema().print_schema();
@@ -933,61 +963,17 @@ public:
         return column->get(row);
     }
 
-    /** Return the offset of the given column name or -1 if no such col exists. */
-    int get_col_index(String &col)
-    {
-        // get number of columns in current df
-        size_t width = this->schema_.width(); 
-
-        // for each column name, get its name from schema column name array and perform a comparison
-        String* curColumnName;
-        for (int i=0; i<width; i++)
-        {
-            curColumnName = this->schema_.col_name(i);
-            if (curColumnName->equals(&col)) return i; 
-        }
-        return -1; //if nothing is found.
-    }
+    // return column array for column number = col
+    IntColumn* get_int_col(int col)  { return this->columns_[col]->as_int(); }
 
     // return column array for column number = col
-    IntColumn* get_int_col(int col) 
-    {
-        return this->columns_[col]->as_int();
-    }
+    BoolColumn* get_bool_col(int col)   { return this->columns_[col]->as_bool();}
 
     // return column array for column number = col
-    BoolColumn* get_bool_col(int col) 
-    {
-        return this->columns_[col]->as_bool();
-    }
+    DoubleColumn* get_double_col(int col)  { return this->columns_[col]->as_double();}
 
     // return column array for column number = col
-    DoubleColumn* get_double_col(int col) 
-    {
-        return this->columns_[col]->as_double();
-    }
-
-    // return column array for column number = col
-    StringColumn* get_string_col(int col) 
-    {
-        return this->columns_[col]->as_string();
-    }
-
-    /** Return the offset of the given row name or -1 if no such row. */
-    int get_row(String &row)
-    {
-        // get number of rows in current df
-        size_t len = this->schema_.length(); 
-
-        // for each row name, get its name from schema rowName array and perform a comparison
-        String* curRowName;
-        for (int i=0; i<len; i++)
-        {
-            curRowName = this->schema_.row_name(i);
-            if (curRowName->equals(&row)) return i; 
-        }
-        return -1; //if nothing is found.
-    }
+    StringColumn* get_string_col(int col) { return this->columns_[col]->as_string(); }
 
     /** Set the value at the given column and row to the given value.
      * If the column is not of the right type or the indices are out of
@@ -1104,7 +1090,7 @@ public:
             }
             case 'S':
             {   StringColumn *column = this->columns_[i]->as_string();
-                column->push_back(row.get_string(i));
+                column->push_back(new String(row.get_string(i)->c_str()));
                 break;
             }
             default:
@@ -1127,48 +1113,6 @@ public:
         for (int i=0;i<nrows(); i++) {
             fill_row(i, row);
             r.accept(row);
-        }
-    }
-
-    // callback function for pmap()
-    void pmap_thread_callback(int thread_id, Rower*r)
-    {
-        //printf(" t_id=%d\n", thread_id);
-        Row row(get_schema());
-
-        // for each row, fill data to row, and pass the data to accept() for processing
-        for (int i = 0; i < this->nrows(); i++)
-        {
-            if (i % NUM_THREAD == thread_id)    // split jobs among threads
-            {
-                this->fill_row(i, row);     // dataframe fills the row with its data
-                r->accept(row);             // rower calls its method accept() with the row data
-            }
-        }
-    }
-
-    // multi-thread processing on each row with given rower
-    void pmap(Rower &rower)
-    {
-        // create NUM_THREAD threads
-        std::thread t[NUM_THREAD];
-
-        // declare NUM_THREAD rowers for each thread t[] to use
-        Rower* ra[NUM_THREAD];
-
-        // Now, create the rowers and pass them to thread callback pmap_thread_call(nt, rower)
-        for (int nt = 0; nt < NUM_THREAD; nt++)
-        {
-           //ra[nt] = new Rower(rower);
-           // clone the passed in rower, and assign one for each thread
-           ra[nt] = (Rower*) rower.clone();
-           t[nt] = std::thread(&DataFrame::pmap_thread_callback, this, nt, ra[nt]);
-        }
-
-        // wait for all threads to finish, then combine results from each thread
-        for (int nt = 0; nt < NUM_THREAD; nt++){
-             t[nt].join();
-             rower.join_delete(ra[nt]);
         }
     }
 
@@ -1239,6 +1183,12 @@ public:
     static DataFrame* fromVisitor(Key *key, KVStore* store, char* colType, Summer* summer);
     DataFrame *local_map(Adder *a);
     void map(Adder &add);
+    static DataFrame* fromFile(char* filename, Key *key, KVStore* store);
+    static DataFrame* fromScalarInt(Key* key, KVStore* store, int data);
+    void map(SetUpdater &upd);
+    void local_map(ProjectsTagger *a);
+    void local_map(UsersTagger *a);
+    static DataFrame* fromVisitor(Key *key, KVStore* store, char* colType, SetWriter* writer);
 };
 
 

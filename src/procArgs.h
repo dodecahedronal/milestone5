@@ -8,7 +8,7 @@
 class ProcArgs : public Object {
 public:
     char* file_ = nullptr;          // input file name
-    size_t numNodes_ = 0;           // number of nodes
+    size_t numNodes_ = 999;           // number of nodes
     size_t rowsPerChunk_ = 0;       //number of rows in a chunk
     size_t nodeId_ = 0;              // ID of this node
     size_t  myPort_ = 0;             // my port number
@@ -36,6 +36,44 @@ public:
         exit(1);
     }
 
+    void checkClientArgs() {
+        if (masterIp_ == nullptr)
+        {
+            printf("[-masterip] must be given.\n");
+            exit(1);
+        }
+        if (masterPort_ == 0)
+        {
+            printf("[-masterport] must be given.\n");
+            exit(1);
+        }
+    }
+
+    void checkArgs()
+    {
+      /*  if (!file_)
+        {
+            printf("[-file] must be given.\n");
+            exit(1);
+        }
+        */
+        if (numNodes_ == 0)
+        {
+            printf("[-node] must be given.\n");
+            exit(1);
+        }
+
+        if (myPort_ == 0)
+        {
+            printf("[-myport] must be given.\n");
+            exit(1);
+        }
+        if (nodeId_ == -1)
+        {
+            printf("[-index] must be given.\n");
+            exit(1);
+        }
+    }
     // parsing the command line
     void parser(int argc, char** argv)
     {
@@ -59,7 +97,7 @@ public:
                 i++;
                 this->masterIp_ = new char[strlen(argv[i])];
                 strcpy(this->masterIp_, argv[i]);
-            }   else if ( strcmp(argv[i], "masterport") == 0 ) {
+            }   else if ( strcmp(argv[i], "-masterport") == 0 ) {
                 i++;
                 this->masterPort_ = atoi(argv[i]);
             }  else if ( strcmp(argv[i], "-rowsperchunk") == 0 ) {
@@ -72,3 +110,4 @@ public:
 };
 
 extern ProcArgs args;
+//extern int debug;

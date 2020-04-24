@@ -2,7 +2,6 @@ Introduction:
 ------------
 The eau2 system is a query system for user-provided SOR data files. The maximum data file size is 100GB. The data is loaded in memory, then distributed over n processors. 
 
-Though this submission is being turned in for Milestone 5, we have not completed the code for the "7 degrees of Linus" portion and instead focused on our technical debt from last week's project. The distributed key value store implementation and distributed word count functionality have been completed. Thus far it can only operate on a pseudo-network and not yet on an actual network. 
 
 Architecture: 
 ---------------
@@ -22,7 +21,7 @@ There are 3 layers in the system design.
 
 Implementation: 
 ---------------
-The application (client interface) can operate on dataframes, either to put them into or get them from the key value store. Every node in the pseudo-network has a single key value store. Each key value store has a map of key-dataframe pairs. 
+The application (client interface) can operate on dataframes, either to put them into or get them from the key value store. Every node in the network has a single key value store. Each key value store has a map of key-dataframe pairs. 
 
 string.h
     1. String class - Modifications
@@ -136,6 +135,24 @@ dataframe.h
 
             // add data to the Adder
             void map(Adder &add);
+
+            // read in file filename, and save to KVstore store with Key key
+            static DataFrame* fromFile(char* filename, Key *key, KVStore* store);
+
+            // Save scalar integer data to KVstore store with Key key
+            static DataFrame* fromScalarInt(Key* key, KVStore* store, int data);
+
+            // Visit a row and update the Set upd accordingly
+            void map(SetUpdater &upd);
+
+            // Visit a row and update the ProjectsTagger a with the user Set information
+            void local_map(ProjectsTagger *a);
+
+            // Visit a row and update the UsersTagger a with the projects Set information
+            void local_map(UsersTagger *a);
+
+            // SetWriter writer is a visitor transformed into a dataframe with a colType column that is then saved into the store with Key key
+            static DataFrame* fromVisitor(Key *key, KVStore* store, char* colType, SetWriter* writer);
 
     2. IntColumn
         Holds primitive int values, unwrapped.
@@ -456,6 +473,45 @@ network_pseudo.h
             Message* recv_msg() override 
 
 
+network_ip.h
+    1. NodeInfo
+        each node is identified by node id(or index) and socket address
+
+        a.) field members:
+            size_t id_
+            sockaddr_in address_
+
+        b.) methods:
+            N/A
+    
+    2. NetworkIp
+        Ip based network communication layer.
+
+        a.) field members:
+            NodeInfo* nodes_;   // all nodes
+            size_t this_node_;  // node index
+            int socket_;        // socket number
+            sockaddr_in ip_;    // ip address
+
+        b.) methods: 
+            // return node index
+            size_t index() 
+
+            // create socket
+            void init_socket_(size_t port) 
+
+            // write a message to other nodes in the directory
+            void send_msg(Message* msg) 
+
+            //  reads a message from the server socket, deserialize it and return the object
+            Message* recv_msg() 
+
+            // initialize server (node 0)
+            void server_init(size_t idx, size_t port) 
+
+            // initialize client node (none 0 node)
+            void client_init(size_t idx, size_t port, char* server_addr, size_t server_port) 
+
 wordCount.cpp
     1. FileReader
         inherits Rower class:
@@ -545,6 +601,159 @@ wordCount.cpp
 
             // Merge dataframe df with map m
             void merger(DataFrame* df, SIMap& m)
+
+linus.cpp
+    1. Set
+        A bit set contains size() booleans that are initialize to false and can
+        be set to true with the set() method. The test() method returns the
+        value. Does not grow.
+
+        a.) field members: 
+            bool* vals_;  // owned; data
+            size_t size_; // number of elements
+
+        b.) methods:
+            // Add idx to the set. If idx is out of bound, ignore it.  Out of bound
+            values can occur if there are references to pids or uids in commits
+            that did not appear in projects or users.
+            void set(size_t idx) 
+
+            // Is idx in the set? 
+            bool test(size_t idx) 
+
+            //return the number of elements
+            size_t size()
+
+            // return number of element with value = true
+            int trueNumber()
+  
+            // Performs set union in place.
+            void union_(Set& from) 
+
+            // print the set
+            void printSet() 
+
+    2. SetUpdater
+        A SetUpdater is a reader that gets the first column of the data frame and
+        sets the corresponding value in the given set.
+
+        a.) field members: 
+            Set& set_; // set to update
+
+        b.) methods: 
+            // Assume a row with at least one column of type I. Assumes that there
+            are no missing. Reads the value and sets the corresponding position.
+            The return value is irrelevant here.
+            void visit(Row & row) 
+
+    3. SetWriter 
+        A SetWriter copies all the values present in the set into a one-column
+        dataframe. The data contains all the values in the set. The dataframe has
+        at least one integer column.
+
+        a.) field members: 
+            Set& set_; // set to read from
+            int i_ = 0;  // position in set
+        
+        b.) methods: 
+            // Skip over false values and stop when the entire set has been seen
+            bool done()
+
+    4. ProjectTagger
+        The ProjectTagger is a reader that is mapped over commits, and marks all
+        of the projects to which a collaborator of Linus committed as an author.
+        The commit dataframe has the form:
+            pid x uid x uid
+        where the pid is the identifier of a project and the uids are the
+        identifiers of the author and committer. If the author is a collaborator
+        of Linus, then the project is added to the set. If the project was
+        already tagged then it is not added to the set of newProjects.
+
+        a.) field members:
+            Set& uSet;          // set of collaborator 
+            Set& pSet;          // set of projects of collaborators
+            Set newProjects;    // newly tagged collaborator projects
+
+        b.) methods: 
+            // The data frame must have at least two integer columns. The newProject
+            set keeps track of projects that were newly tagged (they will have to
+            be communicated to other nodes).
+            void visit(Row & row)
+
+    5. UserTagger
+        The UserTagger is a reader that is mapped over commits, and marks all of
+        the users which commmitted to a project to which a collaborator of Linus
+        also committed as an author. The commit dataframe has the form:
+            pid x uid x uid
+        where the pid is the idefntifier of a project and the uids are the
+        identifiers of the author and committer. 
+
+        a.) field members:
+            Set& pSet;
+            Set& uSet;
+            Set newUsers;
+
+        b.) methods: 
+            void visit(Row &row) 
+    
+    6. Linus
+        This computes the collaborators of Linus Torvalds.
+        is the linus example using the adapter.  And slightly revised
+        algorithm that only ever trades the deltas.
+
+        a.) field members: 
+            * A large number of these constants have been edited for testing purposes
+            // How many degrees of separation form linus?
+            int DEGREES = 1;             
+
+            // The uid of Linus (offset in the user df)                    
+            int LINUS = 1; //4967;          
+
+            const char* PROJ = "datasets/tproj.txt";
+            const char* USER = "datasets/tuser.txt";
+            const char* COMM = "datasets/tcom.txt";
+
+            //  pid x project name
+            DataFrame* projects;                       
+
+            // uid x user name
+            DataFrame* users;  
+
+            // pid x uid x uid                        
+            DataFrame* commits;     
+
+            // Linus' collaborators                          
+            Set* uSet;                
+
+            // projects of collaborators                        
+            Set* pSet;      
+
+        b.) methods:                                  
+            // Compute DEGREES of Linus.  
+            void run_()
+
+            // Node 0 reads three files, cointainng projects, users and commits, and
+            creates thre dataframes. All other nodes wait and load the three
+            dataframes. Once we know the size of users and projects, we create
+            sets of each (uSet and pSet). We also output a data frame with a the
+            'tagged' users. At this point the dataframe consists of only
+            Linus. 
+            void readInput() 
+
+            // constuct a key string. e.g. user-0-0
+            Key* mk_key(size_t stage, size_t idx, const char* str) 
+
+            // Performs a step of the linus calculation. It operates over the three
+            datafrrames (projects, users, commits), the sets of tagged users and
+            projects, and the users added in the previous round. 
+            void step(int stage)
+
+            // Gather updates to the given set from all the nodes in the systems.
+            The union of those updates is then published as a dataframe. The key
+            used for the output is of the form "name-stage-0" where name is either
+            'users' or 'projects', stage is the degree of separation being
+            computed.
+            void merge(Set &set, char const *name, int stage)
 
 
 Use cases:
@@ -773,15 +982,37 @@ From the main function in wordCount.cpp
 
     // join threads
     for (int i = 0; i < 3; i++) th[i].join();
+ 
 ```
 
 ##### Milestone 5
 See Milestone 4. 
 
+##### Final Code Walk
+```cpp
+  // verify number of nodes
+  args.parser(argc, argv);
+  args.checkArgs();
+
+  sockaddr_in addr;
+  NetworkIp nt(addr);
+  if (args.nodeId_ == 0)
+    nt.server_init(args.nodeId_, args.myPort_);
+  else 
+  {
+    args.checkClientArgs();
+    nt.client_init(args.nodeId_, args.myPort_, args.masterIp_, args.masterPort_);
+  }
+
+  Linus Linus(args.nodeId_, &nt);
+  Linus.run_();
+  printf("Linus 4 degree finished\n");
+```
+
 
 Open questions: 
 ---------------
-None at the moment. 
+Brain too fried for questions currently! 
 
 
 Status: 
@@ -844,6 +1075,13 @@ TODO:
 TODO:
     1. Most importantly, as previously stated, implement network_ip.h
     2. Previously listed, uncompleted TODO tasks
+
+#### Final Code Walk
+1. Implemented the code for degrees of Linus. 
+2. Implemented network_ip.h 
+
+TODO:
+    1. Pass this class. 
 
 
 Compile and run

@@ -4,10 +4,6 @@
 #include "object.h"
 #include "serializer.h"
 
-/*
- * A resizeable array class
- * @author Jennifer Ai and Helen Liu
- */
 class Array : public Object {
 public:
    	Object **data_;	// pointer to first Object in the array
@@ -268,6 +264,16 @@ public:
 
     // constructor with deserializer
     IntArray(Deserializer& d) {
+        this->size_ = d.deserialize_size_t();
+        this->max_ = d.deserialize_size_t();
+
+        this->data_ = new int[this->max_];
+        for (int i=0; i<this->size_; i++) {
+            this->data_[i] = d.deserialize_int();
+            //printf("i=%d, x=%d\n", i, data_[i]);
+        }
+    }
+    void deserilize(Deserializer& d) {
         this->size_ = d.deserialize_size_t();
         this->max_ = d.deserialize_size_t();
 
@@ -571,6 +577,17 @@ public:
             this->data_[i] = d.deserialize_double();
     }
 
+    void deserialize(Deserializer& d) {
+        this->size_ = d.deserialize_size_t();
+        this->max_ = d.deserialize_size_t();
+
+        this->data_ = new double[this->max_];
+
+        for (int i=0; i<this->size_; i++) {
+            this->data_[i] = d.deserialize_int();
+            //printf("i=%f, x=%f\n", i, data_[i]);
+        }
+    }
 
     // serializer
     void serialize(Serializer& s) {
@@ -860,6 +877,16 @@ public:
         }
     }
 
+    void deserialize(Deserializer& d) {
+        this->size_ = d.deserialize_size_t();
+        this->max_ = d.deserialize_size_t();
+
+        this->data_ = new bool[this->max_];
+        for (int i=0; i<this->size_; i++) {
+            this->data_[i] = d.deserialize_bool();
+            //printf("==== data[%d] = %d\n", i, data_[i]);
+        }
+    }
     // serializer
     void serialize(Serializer& s) {
         s.serialize_size_t(this->size_);
@@ -1135,12 +1162,22 @@ public:
     // constructor with deserializer
     StringArray(Deserializer& d) {
         this->size_ = d.deserialize_size_t();
-        this->max_ = d.deserialize_size_t();
-printf("--------4 ---- size=%d, max=%d\n", size_, max_);        
+        this->max_ = d.deserialize_size_t();      
         this->data_ = new String*[this->max_];
         for (int i=0; i<this->size_; i++) {
             this->data_[i] = new String(d);
-            printf("====data-size=%d, data[%d]=%s\n", data_[i]->size_, i, data_[i]->cstr_);
+            //printf("====data-size=%d, data[%d]=%s\n", data_[i]->size_, i, data_[i]->cstr_);
+        }
+        //printf("=====string array done\n");
+    }
+
+    void deserialize(Deserializer& d) {
+        this->size_ = d.deserialize_size_t();
+        this->max_ = d.deserialize_size_t();
+        this->data_ = new String*[this->max_];
+        for (int i=0; i<this->size_; i++) {
+            this->data_[i] = new String(d);
+            printf("====data-size=%d, data[%d]=%s\n", (int)data_[i]->size_, i, data_[i]->cstr_);
         }
     }
 

@@ -10,7 +10,7 @@ public:
     virtual void register_node(size_t idx) {}
 
     // return node index
-    virtual size_t index() {}
+    virtual size_t index() {return 0;}
 
     // send message msg
     virtual void send_msg(Message* msg) = 0;
